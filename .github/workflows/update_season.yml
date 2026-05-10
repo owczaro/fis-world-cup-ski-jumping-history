@@ -2,16 +2,16 @@ name: Update Season Data
 
 on:
   schedule:
-    # 1 kwietnia o 06:00 UTC co roku
+    # Runs every year on April 1st at 06:00 UTC
     - cron: '0 6 1 4 *'
   workflow_dispatch:
     inputs:
       season:
-        description: 'Sezon do aktualizacji (np. 2025_2026). Pusty = auto.'
+        description: 'Season to update (e.g. 2025_2026). Leave empty for auto-detect.'
         required: false
         default: ''
       dry_run:
-        description: 'Dry run - nie commituj zmian'
+        description: 'Dry run - do not commit changes'
         required: false
         default: 'false'
         type: boolean
@@ -54,7 +54,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then
-            echo "Brak zmian do commita"
+            echo "No changes to commit"
           else
             SEASON=$(python3 -c "
           from datetime import date

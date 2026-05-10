@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 """
 FIS Ski Jumping World Cup - Season updater
-Pobiera finalne standings z FIS PDF i aktualizuje CSV w repo.
+Downloads final standings from FIS PDF and updates CSV files in the repo.
 
-Uzycie:
-    python update_season.py                      # auto-wykryj sezon
-    python update_season.py --season 2025_2026   # konkretny sezon
+Usage:
+    python update_season.py                      # auto-detect season
+    python update_season.py --season 2025_2026   # specific season
     python update_season.py --season 2025_2026 --dry-run
-    python update_season.py --season 2025_2026 --repo /sciezka/do/repo
+    python update_season.py --season 2025_2026 --repo /path/to/repo
 
-Wymaga: pip install requests pdfplumber
+Requires: pip install requests pdfplumber
 """
 
 import argparse
 import csv
-import os
 import re
 import sys
 import time
@@ -31,18 +30,17 @@ SESSION.headers.update({
 
 
 # ---------------------------------------------------------------------------
-# Logika sezonu
+# Season logic
 # ---------------------------------------------------------------------------
 
 def get_current_season() -> tuple[int, int]:
-    """Zwraca (rok_start, rok_end) ostatnio zakonczeonego sezonu.
+    """Returns (start_year, end_year) of the most recently completed season.
 
-    Sezon X/X+1 konczy sie ~koniec marca roku X+1.
-    Gdy odpalamy 1 kwietnia roku Y -> sezon (Y-1)/Y.
+    Season X/X+1 ends ~late March of year X+1.
+    When run on April 1st of year Y -> season (Y-1)/Y.
     """
     today = date.today()
     y = today.year
-    # Przed czerwcem -> sezon konczy sie w tym roku
     if today.month < 6:
         return y - 1, y
     else:
@@ -54,54 +52,43 @@ def season_str(y1: int, y2: int) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Pobieranie PDFow
+# PDF download
 # ---------------------------------------------------------------------------
 
-# Mapa znanych URL-i do finalnych standings (koniec sezonu).
-# Claude Code uzupelnia je recznie lub skrypt szuka automatycznie.
+# Map of known URLs for final standings (end of season).
 KNOWN_WC_PDF_URLS = {
     # format: (season_end_year, gender) -> url
     (2025, "M"): "https://medias3.fis-ski.com/pdf/2025/JP/3190/2025JP3190WC.pdf",
     (2025, "W"): "https://medias1.fis-ski.com/pdf/2025/JP/3179/2025JP3179WC.pdf",
-    # 2026 - skrypt szuka automatycznie przez FIS strony
-    # (2026, "M"): "https://medias?.fis-ski.com/pdf/2026/JP/3185/2026JP3185WC.pdf",
-    # (2026, "W"): "https://medias?.fis-ski.com/pdf/2026/JP/3184/2026JP3184WC.pdf",
+    (2026, "M"): "https://medias1.fis-ski.com/pdf/2026/JP/3185/2026JP3185WC.pdf",
+    (2026, "W"): "https://medias1.fis-ski.com/pdf/2026/JP/3184/2026JP3184WC.pdf",
 }
 
 
 def find_pdf_via_fis_page(season_end: int, gender: str) -> str | None:
-    """Szuka URL do finalnego WC PDF przez strone standings FIS."""
+    """Searches for the final WC standings PDF URL via the FIS standings page."""
     url = (
         f"https://www.fis-ski.com/DB/ski-jumping/cup-standings.html"
         f"?sectorcode=JP&seasoncode={season_end}&cupcode=WC"
         f"&disciplinecode=ALL&gendercode={gender}&nationcode="
     )
-    print(f"  Szukam PDF na stronie FIS: {url}")
+    print(f"  Searching FIS page: {url}")
     try:
         r = SESSION.get(url, timeout=30)
         r.raise_for_status()
-        # Szukaj linkow do PDFow ze standings
         pdfs = re.findall(r'https://medias\d*\.fis-ski\.com/pdf/[^\s"\'<>]+WC\.pdf', r.text)
         if pdfs:
-            # Ostatni link = najnowszy (po finalnym zawodzie)
             return pdfs[-1]
-        # Fallback: szukaj jakiegokolwiek linku do WC PDF
         pdfs2 = re.findall(r'https://medias\d*\.fis-ski\.com/pdf/[^\s"\'<>]+\.pdf', r.text)
         wc = [p for p in pdfs2 if "WC" in p]
         return wc[-1] if wc else None
     except Exception as e:
-        print(f"  Nie udalo sie pobrac strony FIS: {e}")
+        print(f"  Failed to fetch FIS page: {e}")
         return None
 
 
 def find_pdf_via_event_page(season_end: int, gender: str) -> str | None:
-    """Szuka URL do finalnego WC PDF przez strone ostatniego eventu sezonu."""
-    # Ostatnie eventy sezonu sa zawsze w Planica
-    # Dla mezczyzn: race ID ostatniego zawodu w Planica
-    # Dla kobiet: race ID ostatniego zawodu kobiet
-    # Skrypt probuje odgadnac race ID (zwykle w okolicach 7580-7590 dla 2026)
-
-    # Najpierw szukamy przez FIS calendar
+    """Searches for the final WC standings PDF URL via the last event page."""
     cal_url = (
         f"https://www.fis-ski.com/DB/ski-jumping/calendar-results.html"
         f"?noselection=false&sectorcode=JP&seasoncode={season_end}"
@@ -110,7 +97,6 @@ def find_pdf_via_event_page(season_end: int, gender: str) -> str | None:
     try:
         r = SESSION.get(cal_url, timeout=30)
         r.raise_for_status()
-        # Szukaj linku do ostatniego wyniki (Planica)
         race_ids = re.findall(r'raceid=(\d+)', r.text)
         if race_ids:
             last_id = race_ids[-1]
@@ -121,16 +107,13 @@ def find_pdf_via_event_page(season_end: int, gender: str) -> str | None:
             if wc_pdfs:
                 return wc_pdfs[-1]
     except Exception as e:
-        print(f"  Nie udalo sie przez calendar: {e}")
+        print(f"  Failed via calendar: {e}")
     return None
 
 
 def guess_pdf_url(season_end: int, gender: str) -> list[str]:
-    """Generuje liste kandydujacych URL-i na podstawie wzorcow."""
-    # Wzorzec: medias{1-4}.fis-ski.com/pdf/{year}/JP/{codex}/{year}JP{codex}WC.pdf
-    # Codex dla kobiet jest zawsze o 1 nizszy niz dla mezczyzn (Planica women = dzien przed men)
-    # Dla sezonu 2025: men=3190 (po ostatnim zawodzie Planica), women=3179 (Lahti)
-    # Dla sezonu 2026: men~3185, women~3184
+    """Generates a list of candidate URLs based on known patterns."""
+    # Pattern: medias{1-4}.fis-ski.com/pdf/{year}/JP/{codex}/{year}JP{codex}WC.pdf
     year = season_end
     codex_guesses_m = [3185, 3186, 3187, 3188, 3189, 3190, 3191, 3192]
     codex_guesses_w = [3184, 3183, 3182, 3181, 3180, 3179, 3186, 3187]
@@ -145,97 +128,97 @@ def guess_pdf_url(season_end: int, gender: str) -> list[str]:
 
 
 def download_wc_pdf(season_end: int, gender: str) -> Path | None:
-    """Pobiera finalny WC standings PDF. Zwraca sciezke do pliku lub None."""
+    """Downloads the final WC standings PDF. Returns path to file or None."""
     tmp = Path(f"/tmp/fis_wc_{gender}_{season_end}.pdf")
 
-    # 1. Sprawdz znane URL-e
+    # 1. Try known URLs
     key = (season_end, gender)
     if key in KNOWN_WC_PDF_URLS:
         url = KNOWN_WC_PDF_URLS[key]
-        print(f"  Znany URL: {url}")
+        print(f"  Known URL: {url}")
         try:
             r = SESSION.get(url, timeout=60)
             if r.status_code == 200 and len(r.content) > 10000:
                 tmp.write_bytes(r.content)
-                print(f"  Pobrano {len(r.content)//1024} KB")
+                print(f"  Downloaded {len(r.content)//1024} KB")
                 return tmp
         except Exception as e:
-            print(f"  Blad: {e}")
+            print(f"  Error: {e}")
 
-    # 2. Szukaj przez strone FIS
+    # 2. Search via FIS standings page
     url = find_pdf_via_fis_page(season_end, gender)
     if url:
-        print(f"  URL ze strony FIS: {url}")
+        print(f"  URL from FIS page: {url}")
         try:
             r = SESSION.get(url, timeout=60)
             if r.status_code == 200 and len(r.content) > 10000:
                 tmp.write_bytes(r.content)
-                print(f"  Pobrano {len(r.content)//1024} KB")
+                print(f"  Downloaded {len(r.content)//1024} KB")
                 return tmp
         except Exception as e:
-            print(f"  Blad: {e}")
+            print(f"  Error: {e}")
 
-    # 3. Szukaj przez strone eventu
+    # 3. Search via event page
     url = find_pdf_via_event_page(season_end, gender)
     if url:
-        print(f"  URL ze strony eventu: {url}")
+        print(f"  URL from event page: {url}")
         try:
             r = SESSION.get(url, timeout=60)
             if r.status_code == 200 and len(r.content) > 10000:
                 tmp.write_bytes(r.content)
                 return tmp
         except Exception as e:
-            print(f"  Blad: {e}")
+            print(f"  Error: {e}")
 
-    # 4. Guess URL-e
-    print("  Probuje odgadnac URL PDFa...")
+    # 4. Guess URLs
+    print("  Trying to guess PDF URL...")
     for url in guess_pdf_url(season_end, gender):
         try:
             r = SESSION.get(url, timeout=15)
             if r.status_code == 200 and len(r.content) > 10000:
                 tmp.write_bytes(r.content)
-                print(f"  Znaleziono: {url} ({len(r.content)//1024} KB)")
+                print(f"  Found: {url} ({len(r.content)//1024} KB)")
                 return tmp
             time.sleep(0.2)
         except Exception:
             pass
 
-    print("  BLAD: nie udalo sie znalezc PDF", file=sys.stderr)
+    print("  ERROR: could not find PDF", file=sys.stderr)
     return None
 
 
 # ---------------------------------------------------------------------------
-# Parsowanie PDF
+# PDF parsing
 # ---------------------------------------------------------------------------
 
 def parse_wc_pdf(pdf_path: Path) -> list[dict]:
     """
-    Parsuje FIS World Cup standings PDF. Obsluguje dwa formaty:
+    Parses FIS World Cup standings PDF. Handles two formats:
 
-    Format A (2025 i wczesniej) - punkty na linii PRZED nazwiskiem:
+    Format A (2025 and earlier) - points on the line BEFORE the name:
         '1805 80 60 40 ...'
         '1. TSCHOFENIG Daniel AUT'
 
-    Format B (2026+) - punkty na tej samej linii po kodzie kraju:
+    Format B (2026+) - points on the same line after the country code:
         '► 1. PREVC Domen SLO 2148 50 80 20 ...'
 
-    Zwraca list[{rank: int, name: str, points: int}]
+    Returns list[{rank: int, name: str, points: int}]
     """
-    # Format B: opcjonalny symbol, rank, nazwa, NAT, total_points
+    # Format B: optional arrow symbol, rank, name, NAT, total_points
     fmt_b = re.compile(
         r"^[►▲▼]?\s*(\d+)\.\s+"
         r"([A-Za-z][A-Za-z\s\-\'\.]+?)\s+"
         r"([A-Z]{2,3})\s+"
         r"(\d+)"
     )
-    # Format A: linia zawodnika bez punktow
+    # Format A: athlete line without points
     fmt_a_name = re.compile(
         r"^(\d+)\.\s+"
         r"([A-Za-z][A-Za-z\s\-\'\.]+?)\s+"
         r"([A-Z]{2,3})"
         r"(?:\s+[a-z]+)*\s*$"
     )
-    # Pierwsza liczba na linii (total points w formacie A)
+    # First number on a line (total points in format A)
     points_re = re.compile(r"^(\d+)\s")
 
     all_lines = []
@@ -250,7 +233,7 @@ def parse_wc_pdf(pdf_path: Path) -> list[dict]:
     for i, line in enumerate(all_lines):
         stripped = line.strip()
 
-        # Sprobuj format B najpierw
+        # Try format B first
         m = fmt_b.match(stripped)
         if m:
             rank = int(m.group(1))
@@ -262,7 +245,7 @@ def parse_wc_pdf(pdf_path: Path) -> list[dict]:
                 results.append({"rank": rank, "name": name, "points": points})
             continue
 
-        # Sprobuj format A
+        # Try format A
         m = fmt_a_name.match(stripped)
         if m:
             rank = int(m.group(1))
@@ -287,16 +270,15 @@ def parse_wc_pdf(pdf_path: Path) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# CSV i debiutanci
+# CSV and debutants
 # ---------------------------------------------------------------------------
 
 def collect_previous_names(repo_root: Path, prefix: str, current_season_end: int) -> set[str]:
-    """Zbiera wszystkie nazwiska ze wszystkich sezonow PRZED current_season_end."""
+    """Collects all athlete names from seasons BEFORE current_season_end."""
     names: set[str] = set()
     for f in repo_root.glob(f"{prefix}_[0-9]*.csv"):
         if "debutants" in f.name:
             continue
-        # Wyciagnij rok konca sezonu z nazwy pliku (np. men_2023_2024.csv -> 2024)
         try:
             parts = f.stem.split("_")
             file_season_end = int(parts[-1])
@@ -309,7 +291,7 @@ def collect_previous_names(repo_root: Path, prefix: str, current_season_end: int
                 for row in csv.DictReader(fh):
                     names.add(row["Last Name and First Name"])
         except Exception as e:
-            print(f"  Ostrzezenie: nie udalo sie odczytac {f.name}: {e}", file=sys.stderr)
+            print(f"  Warning: could not read {f.name}: {e}", file=sys.stderr)
     return names
 
 
@@ -324,16 +306,16 @@ def write_season_csv(path: Path, standings: list[dict], previous_names: set[str]
 
 def rebuild_debutants_rank(repo_root: Path, prefix: str) -> int:
     """
-    Przebudowuje {prefix}_debutants_rank.csv z wszystkich sezonow.
-    Zawiera tylko debiutantow (Debut=true) z ich pierwszym sezonem.
-    Zwraca liczbe debiutantow.
+    Rebuilds {prefix}_debutants_rank.csv from all seasons.
+    Contains only debutants (Debut=true/yes) with their first season.
+    Returns the total number of debutants.
     """
     debut_map: dict[str, dict] = {}
 
     for f in sorted(repo_root.glob(f"{prefix}_[0-9]*.csv")):
         if "debutants" in f.name:
             continue
-        season = f.stem[len(prefix) + 1:]  # "2024_2025"
+        season = f.stem[len(prefix) + 1:]  # e.g. "2024_2025"
         try:
             with open(f, newline="", encoding="utf-8") as fh:
                 for row in csv.DictReader(fh):
@@ -347,7 +329,7 @@ def rebuild_debutants_rank(repo_root: Path, prefix: str) -> int:
                                 "name": name,
                             }
         except Exception as e:
-            print(f"  Ostrzezenie: {f.name}: {e}", file=sys.stderr)
+            print(f"  Warning: {f.name}: {e}", file=sys.stderr)
 
     debutants = sorted(debut_map.values(), key=lambda x: (x["season"], x["rank"]))
     out = repo_root / f"{prefix}_debutants_rank.csv"
@@ -366,28 +348,28 @@ def rebuild_debutants_rank(repo_root: Path, prefix: str) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="FIS Ski Jumping standings updater")
-    parser.add_argument("--season", help="Sezon np. 2025_2026 (domyslnie: auto)")
-    parser.add_argument("--dry-run", action="store_true", help="Nie zapisuj plikow")
-    parser.add_argument("--repo", default=".", help="Sciezka do repo (domyslnie: .)")
+    parser.add_argument("--season", help="Season e.g. 2025_2026 (default: auto-detect)")
+    parser.add_argument("--dry-run", action="store_true", help="Do not write files")
+    parser.add_argument("--repo", default=".", help="Path to repo (default: .)")
     args = parser.parse_args()
 
     repo_root = Path(args.repo).resolve()
     if not repo_root.is_dir():
-        print(f"BLAD: repo nie istnieje: {repo_root}", file=sys.stderr)
+        print(f"ERROR: repo not found: {repo_root}", file=sys.stderr)
         return 1
 
     if args.season:
         try:
             y1, y2 = map(int, args.season.split("_"))
         except ValueError:
-            print(f"BLAD: zly format sezonu: {args.season} (oczekiwany: YYYY_YYYY)", file=sys.stderr)
+            print(f"ERROR: invalid season format: {args.season} (expected: YYYY_YYYY)", file=sys.stderr)
             return 1
     else:
         y1, y2 = get_current_season()
 
-    print(f"=== FIS Ski Jumping updater | sezon {y1}/{y2} ===")
+    print(f"=== FIS Ski Jumping updater | season {y1}/{y2} ===")
     if args.dry_run:
-        print("  [DRY RUN - nie zapisuje plikow]")
+        print("  [DRY RUN - not writing files]")
 
     had_error = False
 
@@ -396,41 +378,41 @@ def main() -> int:
         out_csv = repo_root / f"{prefix}_{s_str}.csv"
         print(f"\n[{prefix.upper()}] {out_csv.name}")
 
-        # Pobierz PDF
+        # Download PDF
         pdf_path = download_wc_pdf(y2, gender)
         if pdf_path is None:
-            print(f"  BLAD: brak PDF dla {gender} {y2}", file=sys.stderr)
+            print(f"  ERROR: no PDF found for {gender} {y2}", file=sys.stderr)
             had_error = True
             continue
 
-        # Parsuj
+        # Parse
         standings = parse_wc_pdf(pdf_path)
         if not standings:
-            print(f"  BLAD: brak danych w PDF", file=sys.stderr)
+            print(f"  ERROR: no data in PDF", file=sys.stderr)
             had_error = True
             continue
 
-        print(f"  Zawodnikow: {len(standings)}")
+        print(f"  Athletes: {len(standings)}")
         print(f"  Top 3: {', '.join(s['name'] for s in standings[:3])}")
 
-        # Debiutanci
+        # Debutants
         prev_names = collect_previous_names(repo_root, prefix, y2)
         debutants = [s for s in standings if s["name"] not in prev_names]
-        print(f"  Debiutanci ({len(debutants)}): "
+        print(f"  Debutants ({len(debutants)}): "
               + ", ".join(d["name"] for d in debutants[:5])
               + ("..." if len(debutants) > 5 else ""))
 
         if args.dry_run:
-            print(f"  [DRY RUN] Pomijam zapis {out_csv.name}")
+            print(f"  [DRY RUN] Skipping write of {out_csv.name}")
             continue
 
-        # Zapisz
+        # Save
         write_season_csv(out_csv, standings, prev_names)
-        print(f"  Zapisano: {out_csv}")
+        print(f"  Saved: {out_csv}")
 
-        # Przebuduj debutants_rank
+        # Rebuild debutants rank
         n_deb = rebuild_debutants_rank(repo_root, prefix)
-        print(f"  Zaktualizowano {prefix}_debutants_rank.csv ({n_deb} debiutantow)")
+        print(f"  Updated {prefix}_debutants_rank.csv ({n_deb} debutants)")
 
     return 1 if had_error else 0
 
