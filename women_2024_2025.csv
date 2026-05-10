@@ -1,64 +1,64 @@
 Rank,Last Name and First Name,Points,Debut
-1,PREVC Nika,1933.0,no
-2,FREITAG Selina,1293.0,no
-3,SCHMID Katharina,1201.0,no
-4,KVANDAL Eirin Maria,1026.0,no
-5,SEIFRIEDSBERGER Jacqueline,978.0,no
-6,EDER Lisa,877.0,no
-7,PINKELNIG Eva,819.0,no
-8,STROEM Anna Odine,801.0,no
-9,KLINEC Ema,710.0,no
-10,LOUTITT Alexandria,681.0,no
-11,BJOERSETH Thea Minyan,678.0,no
-12,TAKANASHI Sara,601.0,no
-13,ITO Yuki,509.0,no
-14,REISCH Agnes,484.0,no
-15,STRATE Abigail,408.0,no
-16,MALSINER Lara,389.0,no
-17,SEYFARTH Juliane,356.0,no
-18,MARUYAMA Nozomi,325.0,no
-19,SETO Yuka,312.0,no
-20,MIDTSKOGEN Ingvild Synnoeve,305.0,no
-21,RAUTIONAHO Jenny,284.0,no
-22,MUEHLBACHER Julia,264.0,no
-23,PAGNIER Josephine,222.0,no
-24,ICHINOHE Kurumi,187.0,no
-25,TRAASERUD Heidi Dyhre,175.0,no
-26,SIEFF Annika,139.0,no
-27,LIU Qi,118.0,no
-28,MAURER Nicole,111.0,no
-29,BELSHAW Annika,108.0,no
-30,BODLAJ Taja,88.0,no
-31,KYKKAENEN Julia,81.0,no
-32,TWARDOSZ Anna,80.0,no
-33,JONES Paige,55.0,no
-34,GOERLICH Luisa,51.0,no
-35,SATO Yuzuki,49.0,yes
-36,HOLZ Alvine,48.0,no
-37,TORAZZA Emely,46.0,no
-38,ERZAR Tina,42.0,no
-39,KREUZER Chiara,41.0,no
-40,KRAMER Marita,39.0,no
-41,CHERVET Emma,36.0,no
-42,AMBROSI Martina,25.0,no
-43,OPSETH Silje,24.0,no
-44,DONG Bing,23.0,no
-45,KOMAR Katra,21.0,no
-46,WENG Yangning,20.0,yes
-46,VODAN Nika,20.0,yes
-48,JOHNSON Josie,19.0,no
-49,INDRACKOVA Anezka,17.0,no
-50,SITAR Taja,15.0,yes
-51,INDRACKOVA Karolina,12.0,no
-51,HOLLANDT Anna,12.0,yes
-53,IWASA Haruka,11.0,no
-53,WADSAK Meghann,11.0,yes
-55,JESENKO Jerica,9.0,no
-56,HARALAMBIE Daniela,8.0,no
-57,ZHOU Shiyu,6.0,yes
-58,BELTOWSKA Pola,3.0,yes
-58,KINDLIMANN Rea,3.0,yes
-60,INGOLIC Mia,2.0,yes
-61,ARNET Sina,1.0,no
-61,KOMAR Tinkara,1.0,yes
-61,PENG Qingyue,1.0,no
+1,PREVC Nika,1933,false
+2,FREITAG Selina,1293,false
+3,SCHMID Katharina,1201,false
+4,KVANDAL Eirin Maria,1026,false
+5,SEIFRIEDSBERGER Jacqueline,978,false
+6,EDER Lisa,877,false
+7,PINKELNIG Eva,819,false
+8,STROEM Anna Odine,801,false
+9,KLINEC Ema,710,false
+10,LOUTITT Alexandria,681,false
+11,BJOERSETH Thea Minyan,678,false
+12,TAKANASHI Sara,601,false
+13,ITO Yuki,509,false
+14,REISCH Agnes,484,false
+15,STRATE Abigail,408,false
+16,MALSINER Lara,389,false
+17,SEYFARTH Juliane,356,false
+18,MARUYAMA Nozomi,325,false
+19,SETO Yuka,312,false
+20,MIDTSKOGEN Ingvild Synnoeve,305,false
+21,RAUTIONAHO Jenny,284,false
+22,MUEHLBACHER Julia,264,false
+23,PAGNIER Josephine,222,false
+24,ICHINOHE Kurumi,187,false
+25,TRAASERUD Heidi Dyhre,175,false
+26,SIEFF Annika,139,false
+27,LIU Qi,118,false
+28,MAURER Nicole,111,false
+29,BELSHAW Annika,108,false
+30,BODLAJ Taja,88,false
+31,KYKKAENEN Julia,81,false
+32,TWARDOSZ Anna,80,false
+33,JONES Paige,55,false
+34,GOERLICH Luisa,51,false
+35,SATO Yuzuki,49,true
+36,HOLZ Alvine,48,false
+37,TORAZZA Emely,46,false
+38,ERZAR Tina,42,false
+39,KREUZER Chiara,41,false
+40,KRAMER Marita,39,false
+41,CHERVET Emma,36,false
+42,AMBROSI Martina,25,false
+43,OPSETH Silje,24,false
+44,DONG Bing,23,false
+45,KOMAR Katra,21,false
+46,WENG Yangning,20,true
+46,VODAN Nika,20,true
+48,JOHNSON Josie,19,false
+49,INDRACKOVA Anezka,17,false
+50,SITAR Taja,15,true
+51,INDRACKOVA Karolina,12,false
+51,HOLLANDT Anna,12,true
+53,IWASA Haruka,11,false
+53,WADSAK Meghann,11,true
+55,JESENKO Jerica,9,false
+56,HARALAMBIE Daniela,8,false
+57,ZHOU Shiyu,6,true
+58,BELTOWSKA Pola,3,true
+58,KINDLIMANN Rea,3,true
+60,INGOLIC Mia,2,true
+61,ARNET Sina,1,false
+61,KOMAR Tinkara,1,true
+61,PENG Qingyue,1,false
